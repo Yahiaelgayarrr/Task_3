@@ -48,7 +48,7 @@ export default function AllPerks() {
   }, [perks]) // Dependency: re-run when perks array changes
 
   
-  async function loadAllPerks() {
+  async function loadAllPerks(overrides = {}) {
     // Reset error state before new request
     setError('')
     
@@ -56,18 +56,20 @@ export default function AllPerks() {
     setLoading(true)
     
     try {
+      // Allow callers to override search/merchant immediately (useful for Reset)
+      const searchParam = (overrides.search !== undefined ? overrides.search : searchQuery).trim() || undefined
+      const merchantParam = (overrides.merchant !== undefined ? overrides.merchant : merchantFilter).trim() || undefined
+
       // Make GET request to /api/perks/all with query parameters
       const res = await api.get('/perks/all', {
         params: {
-          // Only include search param if searchQuery is not empty
-          search: searchQuery.trim() || undefined,
-          // Only include merchant param if merchantFilter is not empty
-          merchant: merchantFilter.trim() || undefined
+          search: searchParam,
+          merchant: merchantParam
         }
       })
-      
+
       // Update perks state with response data
-      setPerks(res.data.perks)
+      setPerks(res.data.perks || [])
       
     } catch (err) {
       // Handle errors (network failure, server error, etc.)
@@ -100,7 +102,25 @@ export default function AllPerks() {
     // will automatically trigger and reload all perks
     setSearchQuery('')
     setMerchantFilter('')
+    // Call loadAllPerks immediately with empty overrides so the UI resets instantly
+    loadAllPerks({ search: '', merchant: '' })
+
   }
+
+  // Initial load when component mounts
+  useEffect(() => {
+    loadAllPerks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-search (debounced) when searchQuery or merchantFilter change
+  useEffect(() => {
+    const t = setTimeout(() => {
+      loadAllPerks()
+    }, 450)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, merchantFilter])
 
   
   
@@ -136,7 +156,8 @@ export default function AllPerks() {
                 type="text"
                 className="input"
                 placeholder="Enter perk name..."
-                
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
               />
               <p className="text-xs text-zinc-500 mt-1">
                 Auto-searches as you type, or press Enter / click Search
@@ -151,7 +172,8 @@ export default function AllPerks() {
               </label>
               <select
                 className="input"
-                
+                value={merchantFilter}
+                onChange={e => setMerchantFilter(e.target.value)}
               >
                 <option value="">All Merchants</option>
                 
